@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SnapBooth — Modern Photobooth</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c27;
+    --border: rgba(255,255,255,0.07);
+    --accent: #f0c27f;
+    --accent2: #e879a0;
+    --accent3: #7b8cde;
+    --text: #f0eee8;
+    --muted: #6b6880;
+    --success: #6ee7b7;
+    --radius: 16px;
+    --shadow: 0 24px 64px rgba(0,0,0,0.6);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── BACKGROUND GRAIN + GRADIENT ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 15% 10%, rgba(240,194,127,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 85% 80%, rgba(232,121,160,0.07) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 40% at 50% 50%, rgba(123,140,222,0.05) 0%, transparent 55%);
+    pointer-events: none;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.4;
+    pointer-events: none;
+  }
+
+  #app { position: relative; z-index: 1; }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,10,15,0.7);
+  }
+  .logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .logo span { font-style: italic; }
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 20px;
+    border: none; border-radius: 50px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    text-decoration: none;
+    letter-spacing: 0.01em;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover { background: var(--surface); color: var(--text); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #1a0a10;
+    font-weight: 600;
+    box-shadow: 0 4px 20px rgba(240,194,127,0.3);
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(240,194,127,0.45); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-accent3 {
+    background: var(--accent3);
+    color: #050812;
+    font-weight: 600;
+    box-shadow: 0 4px 20px rgba(123,140,222,0.3);
+  }
+  .btn-accent3:hover { transform: translateY(-1px); filter: brightness(1.1); }
+  .btn-danger {
+    background: rgba(239,68,68,0.15);
+    color: #f87171;
+    border: 1px solid rgba(239,68,68,0.25);
+  }
+  .btn-danger:hover { background: rgba(239,68,68,0.25); }
+  .btn-success {
+    background: rgba(110,231,183,0.15);
+    color: var(--success);
+    border: 1px solid rgba(110,231,183,0.25);
+  }
+  .btn-success:hover { background: rgba(110,231,183,0.25); }
+  .btn-icon {
+    width: 40px; height: 40px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 1.1rem;
+  }
+  .btn-icon:hover { background: var(--surface2); color: var(--text); }
+  .btn-lg { padding: 14px 28px; font-size: 0.95rem; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+  /* ── MAIN LAYOUT ── */
+  main {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 24px;
+    padding: 28px 40px;
+    max-width: 1400px;
+    margin: 0 auto;
+    min-height: calc(100vh - 70px);
+  }
+
+  /* ── LEFT COLUMN ── */
+  .left-col { display: flex; flex-direction: column; gap: 20px; }
+
+  /* ── CAMERA CARD ── */
+  .camera-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+  }
+  .camera-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .camera-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem;
+    font-weight: 700;
+  }
+  .camera-status {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #ef4444;
+  }
+  .status-dot.live { background: var(--success); animation: pulse 2s infinite; }
+  @keyframes pulse {
+    0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+  }
+
+  .viewport-wrapper {
+    position: relative;
+    width: 100%;
+    background: #000;
+  }
+  #videoEl {
+    width: 100%; display: block;
+    transform: scaleX(-1);
+    aspect-ratio: 4/3;
+    object-fit: cover;
+  }
+  #canvasPreview {
+    display: none;
+    width: 100%;
+    aspect-ratio: 4/3;
+    object-fit: cover;
+  }
+
+  /* Overlay filter preview on video */
+  .filter-overlay {
+    position: absolute; inset: 0; pointer-events: none;
+    transition: all 0.3s;
+  }
+
+  /* Countdown */
+  #countdown {
+    position: absolute; inset: 0;
+    display: none; align-items: center; justify-content: center;
+    font-family: 'Playfair Display', serif;
+    font-size: 6rem;
+    font-weight: 900;
+    color: white;
+    text-shadow: 0 0 60px rgba(0,0,0,0.8);
+    animation: cdPop 1s ease;
+    pointer-events: none;
+  }
+  @keyframes cdPop {
+    0% { transform: scale(1.8); opacity: 0; }
+    50% { transform: scale(1); opacity: 1; }
+    90% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* Flash */
+  #flash {
+    position: absolute; inset: 0;
+    background: white; opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.05s;
+  }
+  #flash.active { opacity: 1; }
+
+  /* Sticker overlay canvas */
+  #stickerCanvas {
+    position: absolute; inset: 0;
+    pointer-events: none;
+  }
+
+  /* ── CAMERA CONTROLS ── */
+  .camera-controls {
+    padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .ctrl-group { display: flex; gap: 8px; align-items: center; }
+
+  /* ── TIMER SELECTOR ── */
+  .timer-pills {
+    display: flex; gap: 4px;
+  }
+  .timer-pill {
+    padding: 5px 12px;
+    border-radius: 50px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .timer-pill.active {
+    background: var(--accent);
+    color: #1a0a10;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* ── FILTER STRIP ── */
+  .filter-section {
+    padding: 0 20px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .section-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    padding: 12px 0 8px;
+  }
+  .filter-strip {
+    display: flex; gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .filter-thumb {
+    flex-shrink: 0;
+    width: 72px;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+  .filter-thumb:hover { transform: scale(1.05); }
+  .filter-thumb.active .filter-preview { border-color: var(--accent); }
+  .filter-preview {
+    width: 72px; height: 52px;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    overflow: hidden;
+    background: #222;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+  .filter-preview-img {
+    width: 100%; height: 100%; object-fit: cover;
+    display: block;
+  }
+  .filter-name {
+    font-size: 0.68rem;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 4px;
+    white-space: nowrap;
+  }
+  .filter-thumb.active .filter-name { color: var(--accent); }
+
+  /* ── STICKER SECTION ── */
+  .sticker-strip {
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .sticker-btn {
+    font-size: 1.6rem;
+    width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .sticker-btn:hover { background: var(--surface); transform: scale(1.1); border-color: var(--accent3); }
+
+  /* ── FRAME STRIP ── */
+  .frame-strip { display: flex; gap: 8px; flex-wrap: wrap; }
+  .frame-btn {
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--muted);
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .frame-btn.active {
+    border-color: var(--accent2);
+    color: var(--accent2);
+    background: rgba(232,121,160,0.1);
+  }
+
+  /* ── RIGHT COLUMN (SIDEBAR) ── */
+  .right-col { display: flex; flex-direction: column; gap: 16px; }
+
+  .sidebar-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .sidebar-card-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sidebar-card-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  .badge {
+    background: var(--accent);
+    color: #1a0a10;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 50px;
+  }
+  .badge.blue { background: var(--accent3); }
+
+  /* ── STRIP LAYOUT ── */
+  .strip-selector { display: flex; gap: 8px; padding: 12px 18px; flex-wrap: wrap; }
+  .strip-opt {
+    flex: 1; min-width: 70px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .strip-opt.active { border-color: var(--accent); background: rgba(240,194,127,0.1); }
+  .strip-opt-icon { font-size: 1.3rem; margin-bottom: 4px; }
+  .strip-opt-label { font-size: 0.72rem; color: var(--muted); }
+  .strip-opt.active .strip-opt-label { color: var(--accent); }
+
+  /* ── CAPTURE QUEUE ── */
+  .capture-queue { padding: 12px 18px; }
+  .queue-slots { display: flex; gap: 8px; }
+  .slot {
+    flex: 1; aspect-ratio: 4/3;
+    border-radius: 10px;
+    border: 2px dashed var(--border);
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .slot:hover { border-color: var(--muted); }
+  .slot.filled { border-style: solid; border-color: var(--accent); }
+  .slot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .slot-num {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; color: var(--muted);
+    font-weight: 600;
+  }
+  .slot.filled .slot-num { display: none; }
+  .slot-del {
+    position: absolute; top: 4px; right: 4px;
+    width: 18px; height: 18px;
+    background: rgba(0,0,0,0.7);
+    border-radius: 50%;
+    display: none; align-items: center; justify-content: center;
+    font-size: 0.6rem; cursor: pointer; color: #f87171;
+  }
+  .slot.filled:hover .slot-del { display: flex; }
+
+  /* ── PRINT SETTINGS ── */
+  .print-settings { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+  .setting-row { display: flex; align-items: center; justify-content: space-between; }
+  .setting-label { font-size: 0.82rem; color: var(--muted); }
+  .setting-val { font-size: 0.82rem; font-weight: 500; }
+  select.setting-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    padding: 5px 10px;
+    cursor: pointer;
+  }
+  .toggle {
+    width: 36px; height: 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 50px;
+    position: relative; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .toggle.on { background: var(--success); border-color: var(--success); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 14px; height: 14px;
+    background: white; border-radius: 50%;
+    transition: transform 0.2s;
+  }
+  .toggle.on::after { transform: translateX(16px); }
+
+  /* ── PRINT PREVIEW MODAL ── */
+  #printModal {
+    display: none; position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(12px);
+    align-items: center; justify-content: center;
+  }
+  #printModal.open { display: flex; }
+  .modal-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    max-width: 520px; width: 90%;
+    box-shadow: var(--shadow);
+    animation: modalIn 0.3s ease;
+  }
+  @keyframes modalIn {
+    from { transform: scale(0.92) translateY(20px); opacity: 0; }
+    to { transform: scale(1) translateY(0); opacity: 1; }
+  }
+  .modal-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .modal-sub { font-size: 0.82rem; color: var(--muted); margin-bottom: 20px; }
+
+  /* Print canvas preview */
+  #printCanvas {
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: #fff;
+    display: block;
+    margin-bottom: 18px;
+  }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* ── GALLERY (BOTTOM) ── */
+  .gallery-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .gallery-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+    padding: 14px;
+  }
+  .gallery-item {
+    position: relative;
+    border-radius: 10px;
+    overflow: hidden;
+    cursor: pointer;
+    aspect-ratio: 4/3;
+    background: var(--surface2);
+    transition: transform 0.2s;
+  }
+  .gallery-item:hover { transform: scale(1.02); }
+  .gallery-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gallery-item-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%);
+    opacity: 0; transition: opacity 0.2s;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 8px;
+    gap: 6px;
+  }
+  .gallery-item:hover .gallery-item-overlay { opacity: 1; }
+
+  .empty-gallery {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  .empty-gallery .icon { font-size: 2.5rem; margin-bottom: 10px; opacity: 0.4; }
+
+  /* ── TOAST ── */
+  #toast {
+    position: fixed; bottom: 30px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 50px;
+    padding: 10px 22px;
+    font-size: 0.85rem;
+    backdrop-filter: blur(12px);
+    box-shadow: var(--shadow);
+    z-index: 9999;
+    transition: transform 0.3s ease;
+    white-space: nowrap;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ── RESPONSIVE ── */
+  @media(max-width: 900px) {
+    main { grid-template-columns: 1fr; padding: 16px; }
+    header { padding: 14px 20px; }
+    .right-col { order: -1; }
+  }
+
+  /* CSS Filter Classes */
+  .cf-none { filter: none; }
+  .cf-bw { filter: grayscale(1) contrast(1.1); }
+  .cf-sepia { filter: sepia(0.9) contrast(1.1) brightness(1.05); }
+  .cf-vivid { filter: saturate(1.8) contrast(1.1) brightness(1.05); }
+  .cf-cold { filter: hue-rotate(200deg) saturate(1.2) brightness(1.05); }
+  .cf-warm { filter: sepia(0.3) saturate(1.5) brightness(1.08); }
+  .cf-matte { filter: contrast(0.85) saturate(0.7) brightness(1.05); }
+  .cf-vintage { filter: sepia(0.6) contrast(0.9) brightness(1.1) saturate(0.8); }
+  .cf-dramatic { filter: contrast(1.4) brightness(0.85) saturate(1.2); }
+  .cf-fade { filter: brightness(1.1) contrast(0.8) saturate(0.9); }
+
+  /* Frame overlays */
+  .frame-none { box-shadow: none; }
+  .frame-gold { box-shadow: inset 0 0 0 8px rgba(240,194,127,0.6); }
+  .frame-pink { box-shadow: inset 0 0 0 8px rgba(232,121,160,0.6); }
+  .frame-blue { box-shadow: inset 0 0 0 8px rgba(123,140,222,0.6); }
+  .frame-white { box-shadow: inset 0 0 0 8px rgba(255,255,255,0.8); }
+  .frame-dark { box-shadow: inset 0 0 0 8px rgba(0,0,0,0.8); }
+
+  /* Small util */
+  .icon-btn-group { display: flex; gap: 6px; }
+  hr.divider { border: none; border-top: 1px solid var(--border); }
+
+  /* Camera off screen */
+  .no-cam {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 320px; gap: 14px; padding: 30px;
+    text-align: center;
+  }
+  .no-cam-icon { font-size: 3rem; opacity: 0.3; }
+  .no-cam-text { color: var(--muted); font-size: 0.85rem; }
+
+  /* Shoot button big */
+  .shoot-btn {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: 4px solid var(--bg);
+    outline: 2px solid var(--accent);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem;
+    box-shadow: 0 4px 20px rgba(240,194,127,0.4);
+  }
+  .shoot-btn:hover { transform: scale(1.08); box-shadow: 0 6px 30px rgba(240,194,127,0.6); }
+  .shoot-btn:active { transform: scale(0.96); }
+  .shoot-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* Burst mode indicator */
+  .burst-indicator {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; font-weight: 700;
+    color: #1a0a10;
+    pointer-events: none;
+    display: none;
+  }
+  .burst-indicator.visible { display: flex; }
+
+  .rec-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);
+    border-radius: 50px; padding: 3px 10px;
+    font-size: 0.72rem; color: #f87171; font-weight: 600;
+    display: none;
+  }
+  .rec-badge.active { display: inline-flex; }
+  .rec-dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; animation: pulse 1s infinite; }
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- HEADER -->
+<header>
+  <div class="logo">Snap<span>Booth</span></div>
+  <div class="header-actions">
+    <span class="rec-badge" id="recBadge"><span class="rec-dot"></span> REC</span>
+    <button class="btn btn-ghost" onclick="toggleCamera()" id="camToggleBtn">📷 Kamera</button>
+    <button class="btn btn-primary btn-lg" onclick="openPrintModal()" id="printBtn">🖨️ Cetak Foto</button>
+  </div>
+</header>
+
+<main>
+  <!-- LEFT COLUMN -->
+  <div class="left-col">
+
+    <!-- CAMERA CARD -->
+    <div class="camera-card">
+      <div class="camera-header">
+        <span class="camera-title">📸 Viewfinder</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="camera-status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Tidak aktif</span>
+          </div>
+          <button class="btn-icon" onclick="flipCamera()" title="Flip kamera">↔️</button>
+          <button class="btn-icon" onclick="toggleMirror()" id="mirrorBtn" title="Mirror">🪞</button>
+        </div>
+      </div>
+
+      <div class="viewport-wrapper" id="viewportWrapper">
+        <video id="videoEl" autoplay playsinline muted></video>
+        <canvas id="canvasPreview"></canvas>
+        <canvas id="stickerCanvas" width="640" height="480"></canvas>
+        <div class="filter-overlay" id="filterOverlay"></div>
+        <div id="countdown"></div>
+        <div id="flash"></div>
+      </div>
+
+      <!-- CONTROLS ROW -->
+      <div class="camera-controls">
+        <div class="ctrl-group">
+          <span style="font-size:0.78rem;color:var(--muted)">⏱</span>
+          <div class="timer-pills">
+            <button class="timer-pill active" data-sec="0" onclick="setTimer(0,this)">Langsung</button>
+            <button class="timer-pill" data-sec="3" onclick="setTimer(3,this)">3d</button>
+            <button class="timer-pill" data-sec="5" onclick="setTimer(5,this)">5d</button>
+            <button class="timer-pill" data-sec="10" onclick="setTimer(10,this)">10d</button>
+          </div>
+        </div>
+        <div class="ctrl-group">
+          <button class="shoot-btn" id="shootBtn" onclick="capturePhoto()">📸</button>
+        </div>
+        <div class="ctrl-group">
+          <button class="btn btn-ghost" onclick="startBurstMode()" title="Burst mode (3 foto cepat)" style="font-size:0.8rem">⚡ Burst</button>
+          <button class="btn btn-ghost" onclick="toggleGrid()" id="gridBtn" style="font-size:0.8rem">⊞ Grid</button>
+          <button class="btn btn-ghost" onclick="clearPhotos()" style="font-size:0.8rem">🗑 Hapus</button>
+        </div>
+      </div>
+
+      <!-- FILTERS -->
+      <div class="filter-section">
+        <div class="section-label">🎨 Filter</div>
+        <div class="filter-strip" id="filterStrip">
+          <!-- Filter thumbs are generated by JS -->
+        </div>
+
+        <!-- FRAMES -->
+        <div class="section-label" style="margin-top:10px;">🖼 Bingkai</div>
+        <div class="frame-strip" id="frameStrip">
+          <button class="frame-btn active" data-frame="none" onclick="setFrame('none',this)">Tanpa Bingkai</button>
+          <button class="frame-btn" data-frame="gold" onclick="setFrame('gold',this)">✨ Emas</button>
+          <button class="frame-btn" data-frame="pink" onclick="setFrame('pink',this)">🌸 Pink</button>
+          <button class="frame-btn" data-frame="blue" onclick="setFrame('blue',this)">💙 Biru</button>
+          <button class="frame-btn" data-frame="white" onclick="setFrame('white',this)">⬜ Putih</button>
+          <button class="frame-btn" data-frame="dark" onclick="setFrame('dark',this)">⬛ Gelap</button>
+        </div>
+
+        <!-- STICKERS -->
+        <div class="section-label" style="margin-top:10px;">🏷 Stiker</div>
+        <div class="sticker-strip" id="stickerStrip">
+          <button class="sticker-btn" onclick="addSticker('⭐')">⭐</button>
+          <button class="sticker-btn" onclick="addSticker('❤️')">❤️</button>
+          <button class="sticker-btn" onclick="addSticker('🔥')">🔥</button>
+          <button class="sticker-btn" onclick="addSticker('✨')">✨</button>
+          <button class="sticker-btn" onclick="addSticker('🌈')">🌈</button>
+          <button class="sticker-btn" onclick="addSticker('🎉')">🎉</button>
+          <button class="sticker-btn" onclick="addSticker('😎')">😎</button>
+          <button class="sticker-btn" onclick="addSticker('🦋')">🦋</button>
+          <button class="sticker-btn" onclick="addSticker('🌸')">🌸</button>
+          <button class="sticker-btn" onclick="addSticker('💫')">💫</button>
+          <button class="sticker-btn" onclick="addSticker('🎀')">🎀</button>
+          <button class="sticker-btn" onclick="addSticker('🎸')">🎸</button>
+          <button class="btn btn-ghost" style="font-size:0.75rem;padding:6px 12px;" onclick="clearStickers()">Hapus stiker</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GALLERY -->
+    <div class="gallery-section">
+      <div class="gallery-header">
+        <div style="font-size:0.82rem;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:var(--muted)">🗃 Galeri Foto</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="badge" id="galleryCount">0</span>
+          <button class="btn btn-ghost" style="font-size:0.75rem;padding:6px 12px;" onclick="downloadAll()">⬇ Unduh Semua</button>
+        </div>
+      </div>
+      <div id="galleryGrid" class="gallery-grid">
+        <div class="empty-gallery">
+          <div class="icon">📷</div>
+          <div>Belum ada foto. Mulai ambil gambar!</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /left-col -->
+
+  <!-- RIGHT COLUMN -->
+  <div class="right-col">
+
+    <!-- STRIP LAYOUT -->
+    <div class="sidebar-card">
+      <div class="sidebar-card-header">
+        <span class="sidebar-card-title">Layout Strip</span>
+        <span class="badge blue" id="stripCount">4 foto</span>
+      </div>
+      <div class="strip-selector">
+        <div class="strip-opt active" data-layout="4v" onclick="setLayout('4v',this)">
+          <div class="strip-opt-icon">📋</div>
+          <div class="strip-opt-label">4 Vertikal</div>
+        </div>
+        <div class="strip-opt" data-layout="2x2" onclick="setLayout('2x2',this)">
+          <div class="strip-opt-icon">⊞</div>
+          <div class="strip-opt-label">2×2 Grid</div>
+        </div>
+        <div class="strip-opt" data-layout="3v" onclick="setLayout('3v',this)">
+          <div class="strip-opt-icon">📄</div>
+          <div class="strip-opt-label">3 Vertikal</div>
+        </div>
+        <div class="strip-opt" data-layout="1" onclick="setLayout('1',this)">
+          <div class="strip-opt-icon">🖼</div>
+          <div class="strip-opt-label">1 Foto</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAPTURE QUEUE -->
+    <div class="sidebar-card">
+      <div class="sidebar-card-header">
+        <span class="sidebar-card-title">Antrian Foto</span>
+        <button class="btn btn-ghost" style="font-size:0.72rem;padding:5px 10px;" onclick="clearQueue()">Hapus</button>
+      </div>
+      <div class="capture-queue">
+        <div class="queue-slots" id="queueSlots">
+          <!-- Generated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- PRINT SETTINGS -->
+    <div class="sidebar-card">
+      <div class="sidebar-card-header">
+        <span class="sidebar-card-title">Pengaturan Cetak</span>
+      </div>
+      <div class="print-settings">
+        <div class="setting-row">
+          <span class="setting-label">Ukuran Kertas</span>
+          <select class="setting-select" id="paperSize">
+            <option value="a6">A6 (Foto)</option>
+            <option value="4x6">4×6 inch</option>
+            <option value="2x6">2×6 Strip</option>
+            <option value="a4">A4</option>
+          </select>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Warna Latar</span>
+          <input type="color" id="bgColorPicker" value="#ffffff"
+            style="width:32px;height:28px;border:1px solid var(--border);border-radius:6px;background:transparent;cursor:pointer;padding:2px;">
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Teks Bawah</span>
+          <div class="toggle on" id="toggleText" onclick="toggleSetting('text')"></div>
+        </div>
+        <div class="setting-row" id="textRow">
+          <input type="text" id="captionText" value="SnapBooth ✨"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:0.82rem;padding:7px 12px;">
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Tampilkan Tanggal</span>
+          <div class="toggle on" id="toggleDate" onclick="toggleSetting('date')"></div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">Kualitas</span>
+          <select class="setting-select" id="printQuality">
+            <option value="1">Standar</option>
+            <option value="2" selected>Tinggi</option>
+            <option value="3">Sangat Tinggi</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUICK ACTIONS -->
+    <div class="sidebar-card">
+      <div class="sidebar-card-header">
+        <span class="sidebar-card-title">Aksi Cepat</span>
+      </div>
+      <div style="padding:14px 18px;display:flex;flex-direction:column;gap:8px;">
+        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="openPrintModal()">🖨️ Preview & Cetak</button>
+        <button class="btn btn-accent3" style="width:100%;justify-content:center;" onclick="downloadStrip()">⬇️ Unduh Strip</button>
+        <button class="btn btn-success" style="width:100%;justify-content:center;" onclick="sharePhoto()">📤 Bagikan</button>
+      </div>
+    </div>
+
+  </div><!-- /right-col -->
+</main>
+
+<!-- PRINT MODAL -->
+<div id="printModal">
+  <div class="modal-card">
+    <div class="modal-title">🖨️ Preview Cetak</div>
+    <div class="modal-sub" id="modalSub">Pratinjau hasil foto sebelum dicetak</div>
+    <canvas id="printCanvas"></canvas>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-lg" onclick="closePrintModal()">Batal</button>
+      <button class="btn btn-accent3 btn-lg" onclick="downloadStrip()">⬇ Unduh</button>
+      <button class="btn btn-primary btn-lg" onclick="printNow()">🖨️ Cetak Sekarang</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+</div><!-- /app -->
+
+<script>
+// ═══════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════
+let stream = null;
+let timerSec = 0;
+let currentFilter = 'none';
+let currentFrame = 'none';
+let currentLayout = '4v';
+let isMirrored = true;
+let showGrid = false;
+let stickers = [];
+let photoQueue = []; // base64 strings
+let gallery = [];    // {src, ts}
+let settings = { text: true, date: true };
+
+const FILTERS = [
+  { id:'none',  label:'Original', css:'' },
+  { id:'bw',    label:'B&W',      css:'grayscale(1) contrast(1.1)' },
+  { id:'sepia', label:'Sepia',    css:'sepia(0.9) contrast(1.1)' },
+  { id:'vivid', label:'Vivid',    css:'saturate(1.8) contrast(1.1)' },
+  { id:'cold',  label:'Cool',     css:'hue-rotate(200deg) saturate(1.2)' },
+  { id:'warm',  label:'Warm',     css:'sepia(0.3) saturate(1.5)' },
+  { id:'matte', label:'Matte',    css:'contrast(0.85) saturate(0.7)' },
+  { id:'vintage',label:'Vintage', css:'sepia(0.6) contrast(0.9) brightness(1.1)' },
+  { id:'dramatic',label:'Drama',  css:'contrast(1.4) brightness(0.85) saturate(1.2)' },
+  { id:'fade',  label:'Fade',     css:'brightness(1.1) contrast(0.8)' },
+];
+
+const LAYOUT_COUNTS = { '4v':4, '2x2':4, '3v':3, '1':1 };
+
+// ═══════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════
+window.addEventListener('load', () => {
+  buildFilterStrip();
+  buildQueueSlots();
+  startCamera();
+});
+
+// ═══════════════════════════════════════════════
+// CAMERA
+// ═══════════════════════════════════════════════
+async function startCamera(facingMode = 'user') {
+  try {
+    if (stream) { stream.getTracks().forEach(t => t.stop()); }
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 1280 }, height: { ideal: 960 } },
+      audio: false
+    });
+    const vid = document.getElementById('videoEl');
+    vid.srcObject = stream;
+    vid.style.display = 'block';
+    document.getElementById('canvasPreview').style.display = 'none';
+    setStatus(true);
+  } catch(e) {
+    setStatus(false);
+    showNoCam(e.message);
+  }
+}
+
+function setStatus(live) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'status-dot' + (live ? ' live' : '');
+  txt.textContent = live ? 'Live' : 'Tidak aktif';
+}
+
+let facingFront = true;
+function flipCamera() {
+  facingFront = !facingFront;
+  startCamera(facingFront ? 'user' : 'environment');
+}
+
+function toggleCamera() {
+  if (stream && stream.active) {
+    stream.getTracks().forEach(t => t.stop());
+    stream = null;
+    setStatus(false);
+    document.getElementById('camToggleBtn').textContent = '📷 Kamera On';
+    showNoCam('Kamera dimatikan');
+  } else {
+    document.getElementById('camToggleBtn').textContent = '📷 Kamera';
+    startCamera();
+  }
+}
+
+function toggleMirror() {
+  isMirrored = !isMirrored;
+  const vid = document.getElementById('videoEl');
+  vid.style.transform = isMirrored ? 'scaleX(-1)' : 'scaleX(1)';
+  const btn = document.getElementById('mirrorBtn');
+  btn.style.color = isMirrored ? 'var(--accent)' : '';
+}
+
+function showNoCam(msg) {
+  const vp = document.getElementById('viewportWrapper');
+  let nc = vp.querySelector('.no-cam');
+  if (!nc) {
+    nc = document.createElement('div');
+    nc.className = 'no-cam';
+    nc.innerHTML = `<div class="no-cam-icon">📷</div><div class="no-cam-text">${msg || 'Kamera tidak tersedia'}</div>`;
+    vp.appendChild(nc);
+  }
+}
+
+function toggleGrid() {
+  showGrid = !showGrid;
+  const vid = document.getElementById('videoEl');
+  const btn = document.getElementById('gridBtn');
+  if (showGrid) {
+    vid.style.outline = '1px solid rgba(255,255,255,0.15)';
+    // draw grid via overlay
+    const ov = document.getElementById('filterOverlay');
+    ov.style.backgroundImage = `
+      linear-gradient(rgba(255,255,255,0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)`;
+    ov.style.backgroundSize = '33.33% 33.33%';
+    btn.style.color = 'var(--accent)';
+  } else {
+    const ov = document.getElementById('filterOverlay');
+    ov.style.backgroundImage = '';
+    ov.style.backgroundSize = '';
+    btn.style.color = '';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// FILTERS
+// ═══════════════════════════════════════════════
+function buildFilterStrip() {
+  const strip = document.getElementById('filterStrip');
+  strip.innerHTML = '';
+  FILTERS.forEach(f => {
+    const thumb = document.createElement('div');
+    thumb.className = 'filter-thumb' + (f.id === currentFilter ? ' active' : '');
+    thumb.onclick = () => applyFilter(f.id, thumb);
+    // Create mini preview div with filter applied
+    thumb.innerHTML = `
+      <div class="filter-preview" style="filter:${f.css}">
+        <div style="width:100%;height:100%;background:linear-gradient(135deg,#667eea,#f093fb,#fda085,#84fab0);"></div>
+      </div>
+      <div class="filter-name">${f.label}</div>`;
+    strip.appendChild(thumb);
+  });
+}
+
+function applyFilter(id, el) {
+  currentFilter = id;
+  document.querySelectorAll('.filter-thumb').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  const f = FILTERS.find(x => x.id === id);
+  document.getElementById('videoEl').style.filter = f ? f.css : '';
+}
+
+// ═══════════════════════════════════════════════
+// FRAMES
+// ═══════════════════════════════════════════════
+function setFrame(id, el) {
+  currentFrame = id;
+  document.querySelectorAll('.frame-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════
+// STICKERS
+// ═══════════════════════════════════════════════
+function addSticker(emoji) {
+  const vp = document.getElementById('viewportWrapper');
+  const rect = vp.getBoundingClientRect();
+  // random position inside viewport
+  stickers.push({
+    emoji,
+    x: 0.2 + Math.random() * 0.6,  // normalized 0-1
+    y: 0.2 + Math.random() * 0.6,
+    size: 36 + Math.random() * 20,
+    rot: (Math.random() - 0.5) * 40
+  });
+  drawStickers();
+  showToast(`Stiker ${emoji} ditambahkan`);
+}
+
+function drawStickers() {
+  const canvas = document.getElementById('stickerCanvas');
+  const vp = document.getElementById('viewportWrapper');
+  canvas.width = vp.clientWidth;
+  canvas.height = vp.clientHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  stickers.forEach(s => {
+    ctx.save();
+    ctx.translate(s.x * canvas.width, s.y * canvas.height);
+    ctx.rotate(s.rot * Math.PI / 180);
+    ctx.font = `${s.size}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(s.emoji, 0, 0);
+    ctx.restore();
+  });
+}
+
+function clearStickers() {
+  stickers = [];
+  const canvas = document.getElementById('stickerCanvas');
+  canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  showToast('Stiker dihapus');
+}
+
+// ═══════════════════════════════════════════════
+// LAYOUT
+// ═══════════════════════════════════════════════
+function setLayout(id, el) {
+  currentLayout = id;
+  document.querySelectorAll('.strip-opt').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  const count = LAYOUT_COUNTS[id];
+  document.getElementById('stripCount').textContent = count + ' foto';
+  buildQueueSlots();
+  // prune/pad queue
+  photoQueue = photoQueue.slice(0, count);
+  renderQueue();
+}
+
+function buildQueueSlots() {
+  const count = LAYOUT_COUNTS[currentLayout];
+  const container = document.getElementById('queueSlots');
+  container.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    slot.id = `slot-${i}`;
+    const num = document.createElement('div');
+    num.className = 'slot-num';
+    num.textContent = i + 1;
+    const del = document.createElement('div');
+    del.className = 'slot-del';
+    del.textContent = '×';
+    del.onclick = (e) => { e.stopPropagation(); removeFromQueue(i); };
+    slot.appendChild(num);
+    slot.appendChild(del);
+    container.appendChild(slot);
+  }
+}
+
+function renderQueue() {
+  const count = LAYOUT_COUNTS[currentLayout];
+  for (let i = 0; i < count; i++) {
+    const slot = document.getElementById(`slot-${i}`);
+    if (!slot) continue;
+    if (photoQueue[i]) {
+      slot.classList.add('filled');
+      let img = slot.querySelector('img');
+      if (!img) { img = document.createElement('img'); slot.insertBefore(img, slot.firstChild); }
+      img.src = photoQueue[i];
+    } else {
+      slot.classList.remove('filled');
+      const img = slot.querySelector('img');
+      if (img) img.remove();
+    }
+  }
+}
+
+function removeFromQueue(i) {
+  photoQueue.splice(i, 1);
+  renderQueue();
+}
+
+function clearQueue() {
+  photoQueue = [];
+  renderQueue();
+  showToast('Antrian dikosongkan');
+}
+
+// ═══════════════════════════════════════════════
+// TIMER
+// ═══════════════════════════════════════════════
+function setTimer(sec, el) {
+  timerSec = sec;
+  document.querySelectorAll('.timer-pill').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ═══════════════════════════════════════════════
+// CAPTURE
+// ═══════════════════════════════════════════════
+let countdownActive = false;
+
+async function capturePhoto() {
+  if (countdownActive) return;
+  if (!stream || !stream.active) {
+    showToast('Nyalakan kamera terlebih dahulu! 📷');
+    return;
+  }
+  if (timerSec > 0) {
+    await runCountdown(timerSec);
+  }
+  doSnap();
+}
+
+function runCountdown(sec) {
+  countdownActive = true;
+  return new Promise(resolve => {
+    const el = document.getElementById('countdown');
+    let n = sec;
+    el.style.display = 'flex';
+    el.textContent = n;
+    const iv = setInterval(() => {
+      n--;
+      if (n <= 0) {
+        clearInterval(iv);
+        el.style.display = 'none';
+        countdownActive = false;
+        resolve();
+      } else {
+        el.textContent = n;
+        el.style.animation = 'none';
+        void el.offsetHeight;
+        el.style.animation = 'cdPop 1s ease';
+      }
+    }, 1000);
+  });
+}
+
+function doSnap() {
+  const video = document.getElementById('videoEl');
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  const ctx = canvas.getContext('2d');
+
+  // Apply mirror
+  if (isMirrored) {
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
+  // Apply filter
+  const f = FILTERS.find(x => x.id === currentFilter);
+  if (f && f.css) ctx.filter = f.css;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.filter = 'none';
+  if (isMirrored) { ctx.setTransform(1,0,0,1,0,0); }
+
+  // Draw stickers onto capture
+  const stickerCanvas = document.getElementById('stickerCanvas');
+  if (stickers.length > 0) {
+    stickers.forEach(s => {
+      ctx.save();
+      ctx.translate(s.x * canvas.width, s.y * canvas.height);
+      ctx.rotate(s.rot * Math.PI / 180);
+      ctx.font = `${s.size * (canvas.width / stickerCanvas.width)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(s.emoji, 0, 0);
+      ctx.restore();
+    });
+  }
+
+  // Frame border
+  if (currentFrame !== 'none') {
+    const frameColors = { gold:'rgba(240,194,127,0.7)', pink:'rgba(232,121,160,0.7)', blue:'rgba(123,140,222,0.7)', white:'rgba(255,255,255,0.85)', dark:'rgba(0,0,0,0.85)' };
+    const fc = frameColors[currentFrame];
+    if (fc) {
+      const bw = Math.round(canvas.width * 0.025);
+      ctx.strokeStyle = fc;
+      ctx.lineWidth = bw * 2;
+      ctx.strokeRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+  // Flash effect
+  flashEffect();
+
+  // Add to queue
+  const maxSlots = LAYOUT_COUNTS[currentLayout];
+  if (photoQueue.length < maxSlots) {
+    photoQueue.push(dataUrl);
+    renderQueue();
+    showToast(`📸 Foto ${photoQueue.length}/${maxSlots} berhasil!`);
+  } else {
+    // Replace oldest
+    photoQueue.shift();
+    photoQueue.push(dataUrl);
+    renderQueue();
+    showToast('📸 Slot penuh — foto terlama diganti');
+  }
+
+  // Add to gallery
+  gallery.unshift({ src: dataUrl, ts: new Date() });
+  renderGallery();
+}
+
+function flashEffect() {
+  const flash = document.getElementById('flash');
+  flash.classList.add('active');
+  setTimeout(() => flash.classList.remove('active'), 120);
+}
+
+async function startBurstMode() {
+  if (!stream || !stream.active) { showToast('Nyalakan kamera terlebih dahulu! 📷'); return; }
+  showToast('⚡ Burst mode: 3 foto...');
+  for (let i = 0; i < 3; i++) {
+    await delay(600);
+    doSnap();
+  }
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ═══════════════════════════════════════════════
+// GALLERY
+// ═══════════════════════════════════════════════
+function renderGallery() {
+  const grid = document.getElementById('galleryGrid');
+  document.getElementById('galleryCount').textContent = gallery.length;
+  if (gallery.length === 0) {
+    grid.innerHTML = `<div class="empty-gallery"><div class="icon">📷</div><div>Belum ada foto. Mulai ambil gambar!</div></div>`;
+    return;
+  }
+  grid.innerHTML = '';
+  gallery.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = 'gallery-item';
+    item.innerHTML = `
+      <img src="${p.src}" alt="Foto ${i+1}">
+      <div class="gallery-item-overlay">
+        <button class="btn-icon" onclick="downloadSingle(${i})" title="Unduh" style="width:28px;height:28px;font-size:0.8rem;">⬇</button>
+        <button class="btn-icon" onclick="addToQueue(${i})" title="Tambah ke strip" style="width:28px;height:28px;font-size:0.8rem;">+</button>
+        <button class="btn-icon" onclick="deleteGallery(${i})" title="Hapus" style="width:28px;height:28px;font-size:0.8rem;color:var(--accent2);">×</button>
+      </div>`;
+    grid.appendChild(item);
+  });
+}
+
+function deleteGallery(i) {
+  gallery.splice(i, 1);
+  renderGallery();
+}
+
+function addToQueue(i) {
+  const max = LAYOUT_COUNTS[currentLayout];
+  if (photoQueue.length < max) {
+    photoQueue.push(gallery[i].src);
+    renderQueue();
+    showToast('Foto ditambahkan ke strip!');
+  } else {
+    showToast('Slot strip sudah penuh!');
+  }
+}
+
+function clearPhotos() {
+  photoQueue = [];
+  gallery = [];
+  renderQueue();
+  renderGallery();
+  showToast('Semua foto dihapus');
+}
+
+// ═══════════════════════════════════════════════
+// PRINT / STRIP RENDER
+// ═══════════════════════════════════════════════
+function renderStripCanvas(targetCanvas, scale) {
+  scale = scale || 1;
+  const photos = photoQueue.length > 0 ? photoQueue : gallery.slice(0, LAYOUT_COUNTS[currentLayout]).map(g => g.src);
+  const bgColor = document.getElementById('bgColorPicker').value;
+  const showText = settings.text;
+  const showDate = settings.date;
+  const caption = document.getElementById('captionText').value;
+  const layout = currentLayout;
+
+  const ph = 480 * scale; // photo height
+  const pw = 640 * scale; // photo width
+  const pad = 16 * scale;
+  const footerH = (showText || showDate) ? 50 * scale : 0;
+
+  let W, H;
+  if (layout === '4v') {
+    W = pw + pad * 2;
+    H = (ph * 0.75 + pad) * 4 + pad + footerH;
+  } else if (layout === '2x2') {
+    const hw = (pw / 2); const hh = (ph * 0.75 / 2);
+    W = hw * 2 + pad * 3;
+    H = hh * 2 + pad * 3 + footerH;
+  } else if (layout === '3v') {
+    W = pw + pad * 2;
+    H = (ph * 0.75 + pad) * 3 + pad + footerH;
+  } else {
+    W = pw + pad * 2;
+    H = ph * 0.75 + pad * 2 + footerH;
+  }
+
+  targetCanvas.width = W;
+  targetCanvas.height = H;
+  const ctx = targetCanvas.getContext('2d');
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, W, H);
+
+  const drawSlot = (src, x, y, w, h) => {
+    return new Promise(resolve => {
+      if (!src) { ctx.fillStyle = '#eee'; ctx.fillRect(x, y, w, h); resolve(); return; }
+      const img = new Image();
+      img.onload = () => { ctx.drawImage(img, x, y, w, h); resolve(); };
+      img.onerror = () => { ctx.fillStyle = '#ddd'; ctx.fillRect(x, y, w, h); resolve(); };
+      img.src = src;
+    });
+  };
+
+  const draws = [];
+  const photoW = pw;
+  const photoH = ph * 0.75;
+
+  if (layout === '4v') {
+    for (let i = 0; i < 4; i++) {
+      draws.push(drawSlot(photos[i], pad, pad + i * (photoH + pad), photoW, photoH));
+    }
+  } else if (layout === '2x2') {
+    const hw = photoW / 2, hh = photoH / 2;
+    draws.push(drawSlot(photos[0], pad, pad, hw, hh));
+    draws.push(drawSlot(photos[1], pad * 2 + hw, pad, hw, hh));
+    draws.push(drawSlot(photos[2], pad, pad * 2 + hh, hw, hh));
+    draws.push(drawSlot(photos[3], pad * 2 + hw, pad * 2 + hh, hw, hh));
+  } else if (layout === '3v') {
+    for (let i = 0; i < 3; i++) {
+      draws.push(drawSlot(photos[i], pad, pad + i * (photoH + pad), photoW, photoH));
+    }
+  } else {
+    draws.push(drawSlot(photos[0], pad, pad, photoW, photoH));
+  }
+
+  return Promise.all(draws).then(() => {
+    if (showText || showDate) {
+      const fy = H - footerH + 10 * scale;
+      ctx.fillStyle = bgColor === '#ffffff' ? '#333' : bgColor;
+      // darken or lighten text
+      const r = parseInt(bgColor.slice(1,3),16);
+      const g2 = parseInt(bgColor.slice(3,5),16);
+      const b = parseInt(bgColor.slice(5,7),16);
+      const luminance = (0.299*r + 0.587*g2 + 0.114*b) / 255;
+      ctx.fillStyle = luminance > 0.5 ? '#333' : '#eee';
+
+      if (showText) {
+        ctx.font = `${14*scale}px "DM Sans", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText(caption, W / 2, fy + 18*scale);
+      }
+      if (showDate) {
+        const dateStr = new Date().toLocaleDateString('id-ID', {day:'numeric',month:'long',year:'numeric'});
+        ctx.font = `${11*scale}px "DM Sans", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.globalAlpha = 0.6;
+        ctx.fillText(dateStr, W / 2, fy + 36*scale);
+        ctx.globalAlpha = 1;
+      }
+    }
+  });
+}
+
+async function openPrintModal() {
+  if (photoQueue.length === 0 && gallery.length === 0) {
+    showToast('Ambil foto terlebih dahulu! 📷');
+    return;
+  }
+  document.getElementById('printModal').classList.add('open');
+  const canvas = document.getElementById('printCanvas');
+  await renderStripCanvas(canvas, 1);
+  // Scale to fit modal display
+  const maxW = 460;
+  const scale = Math.min(1, maxW / canvas.width);
+  canvas.style.width = (canvas.width * scale) + 'px';
+  canvas.style.height = 'auto';
+}
+
+function closePrintModal() {
+  document.getElementById('printModal').classList.remove('open');
+}
+
+async function printNow() {
+  const hiCanvas = document.createElement('canvas');
+  const quality = parseInt(document.getElementById('printQuality').value);
+  await renderStripCanvas(hiCanvas, quality);
+  const dataUrl = hiCanvas.toDataURL('image/jpeg', 0.95);
+
+  const win = window.open('', '_blank');
+  win.document.write(`
+    <html><head><title>Cetak SnapBooth</title>
+    <style>
+      * { margin:0; padding:0; box-sizing:border-box; }
+      body { display:flex; justify-content:center; align-items:flex-start; background:#fff; }
+      img { max-width:100%; height:auto; display:block; }
+      @media print { body { margin:0; } }
+    </style>
+    </head><body>
+    <img src="${dataUrl}" onload="window.print(); window.close();">
+    </body></html>`);
+  win.document.close();
+  showToast('🖨️ Membuka dialog cetak...');
+}
+
+async function downloadStrip() {
+  const hiCanvas = document.createElement('canvas');
+  const quality = parseInt(document.getElementById('printQuality').value);
+  await renderStripCanvas(hiCanvas, quality);
+  const a = document.createElement('a');
+  a.download = `snapbooth-strip-${Date.now()}.jpg`;
+  a.href = hiCanvas.toDataURL('image/jpeg', 0.95);
+  a.click();
+  showToast('✅ Strip foto diunduh!');
+}
+
+function downloadSingle(i) {
+  const a = document.createElement('a');
+  a.download = `snapbooth-${Date.now()}.jpg`;
+  a.href = gallery[i].src;
+  a.click();
+}
+
+function downloadAll() {
+  if (gallery.length === 0) { showToast('Belum ada foto!'); return; }
+  gallery.forEach((p, i) => {
+    setTimeout(() => {
+      const a = document.createElement('a');
+      a.download = `snapbooth-${i+1}-${Date.now()}.jpg`;
+      a.href = p.src;
+      a.click();
+    }, i * 300);
+  });
+  showToast(`⬇ Mengunduh ${gallery.length} foto...`);
+}
+
+async function sharePhoto() {
+  if (gallery.length === 0) { showToast('Belum ada foto!'); return; }
+  if (navigator.share) {
+    const canvas = document.createElement('canvas');
+    await renderStripCanvas(canvas, 1);
+    canvas.toBlob(async blob => {
+      const file = new File([blob], 'snapbooth.jpg', { type: 'image/jpeg' });
+      try {
+        await navigator.share({ files: [file], title: 'SnapBooth Foto' });
+      } catch(e) { showToast('Dibatalkan'); }
+    }, 'image/jpeg', 0.9);
+  } else {
+    showToast('Bagikan tidak tersedia di browser ini. Gunakan Unduh.');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// SETTINGS TOGGLES
+// ═══════════════════════════════════════════════
+function toggleSetting(key) {
+  settings[key] = !settings[key];
+  const el = document.getElementById('toggle' + key.charAt(0).toUpperCase() + key.slice(1));
+  el.classList.toggle('on', settings[key]);
+}
+
+// ═══════════════════════════════════════════════
+// TOAST
+// ═══════════════════════════════════════════════
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// Close modal on backdrop click
+document.getElementById('printModal').addEventListener('click', function(e) {
+  if (e.target === this) closePrintModal();
+});
+
+// Keyboard shortcuts
+window.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); capturePhoto(); }
+  if (e.code === 'KeyP') openPrintModal();
+  if (e.code === 'Escape') closePrintModal();
+  if (e.code === 'KeyB') startBurstMode();
+  if (e.code === 'KeyG') toggleGrid();
+});
+</script>
+</body>
+</html>
